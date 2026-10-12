@@ -6,7 +6,7 @@ A weekly report that explains why your AWS bill changed.
 
 > Status: Phase 1 (local logic). AWS, Lambda and Terraform come in later phases.
 
-## Quick start (no AWS needed)
+## Quick start
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
