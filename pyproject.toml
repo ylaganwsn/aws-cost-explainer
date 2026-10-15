@@ -7,7 +7,7 @@ dependencies = []
 
 [project.optional-dependencies]
 aws = ["boto3"]
-dev = ["pytest", "ruff", "boto3"]
+dev = ["pytest", "ruff", "boto3", "botocore[crt]"]
 
 [build-system]
 requires = ["setuptools>=68"]
