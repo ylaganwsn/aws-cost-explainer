@@ -18,5 +18,17 @@ variable "notification_email" {
 variable "gemini_key_parameter_name" {
   description = "Name of the SSM SecureString parameter that holds the Gemini API key"
   type        = string
-  default     = "/aws-cost-explainer/gemini-api-key"
+  default     = "/cost-explainer/gemini-api-key"
+}
+
+variable "use_llm" {
+  description = "Set to false to send the plain report without the Gemini explanation"
+  type        = bool
+  default     = true
+}
+
+variable "schedule_expression" {
+  description = "When to send the report (EventBridge cron, in UTC). Default: Mondays 09:00 UTC"
+  type        = string
+  default     = "cron(0 9 ? * MON *)"
 }
