@@ -1,11 +1,12 @@
 """AWS Lambda entry point: fetch -> compare -> explain -> deliver.
 
 Settings come from environment variables, so Terraform can change them without code changes:
-  SNS_TOPIC_ARN    where to send the email
-  GEMINI_API_KEY   read by llm.py (in AWS it will come from SSM)
-  USE_SAMPLE_DATA  "true" = use examples/sample_cost_data.json instead of calling AWS
-  USE_LLM          "false" = skip the LLM explanation (default: on)
-  DRY_RUN          "true" = print the report instead of sending it
+  SNS_TOPIC_ARN         where to send the email
+  GEMINI_API_KEY        read by llm.py (in AWS it is fetched from SSM, see below)
+  GEMINI_KEY_PARAMETER  name of the SSM SecureString parameter that holds the Gemini key
+  USE_SAMPLE_DATA       "true" = use examples/sample_cost_data.json instead of calling AWS
+  USE_LLM               "false" = skip the LLM explanation (default: on)
+  DRY_RUN               "true" = print the report instead of sending it
   MIN_ABS_CHANGE, MIN_PCT_CHANGE, TOP_N   report thresholds
 """
 
@@ -14,7 +15,7 @@ from __future__ import annotations
 import json
 import logging
 import os
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, MutableMapping
 from datetime import timedelta
 from pathlib import Path
 from typing import Any
@@ -95,9 +96,37 @@ def run(
     }
 
 
+def fetch_api_key_from_ssm(parameter_name: str, client: Any = None) -> str | None:
+    """Read the Gemini key from SSM Parameter Store. Return None on any failure."""
+    try:
+        if client is None:
+            import boto3  # imported here so local runs and tests don't need AWS
+
+            client = boto3.client("ssm")
+        response = client.get_parameter(Name=parameter_name, WithDecryption=True)
+        return response["Parameter"]["Value"]
+    # Deliberately broad: a missing key must never stop the report from being sent.
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Could not read the Gemini key from SSM (%s)", type(exc).__name__)
+        return None
+
+
+def load_api_key(env: MutableMapping[str, str], ssm_client: Any = None) -> None:
+    """If no key is set but an SSM parameter name is, fetch the key into env."""
+    if env.get("GEMINI_API_KEY") or env.get("USE_LLM", "true").lower() == "false":
+        return
+    parameter_name = env.get("GEMINI_KEY_PARAMETER")
+    if not parameter_name:
+        return
+    key = fetch_api_key_from_ssm(parameter_name, ssm_client)
+    if key:
+        env["GEMINI_API_KEY"] = key
+
+
 def handler(event: dict[str, Any] | None, context: Any) -> dict[str, Any]:
     """The function AWS Lambda calls."""
     logging.getLogger().setLevel(logging.INFO)
+    load_api_key(os.environ)
     outcome = run(os.environ)
     logger.info(
         "Report done: message_id=%s, used_llm=%s, used_sample_data=%s",
