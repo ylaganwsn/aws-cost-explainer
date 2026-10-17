@@ -32,7 +32,7 @@ data "aws_iam_policy_document" "lambda" {
   statement {
     sid       = "ReadGeminiKey"
     actions   = ["ssm:GetParameter"]
-    resources = ["arn:aws:ssm:${var.aws_region}:${local.account_id}:parameter${var.gemini_key_parameter_name}"]
+    resources = [aws_ssm_parameter.gemini_key.arn]
   }
 
   statement {

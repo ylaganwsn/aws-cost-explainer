@@ -34,5 +34,6 @@ resource "aws_lambda_function" "report" {
   depends_on = [
     aws_cloudwatch_log_group.lambda,
     aws_iam_role_policy.lambda,
+    aws_ssm_parameter.gemini_key,
   ]
 }

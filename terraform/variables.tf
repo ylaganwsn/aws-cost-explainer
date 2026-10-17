@@ -32,3 +32,10 @@ variable "schedule_expression" {
   type        = string
   default     = "cron(0 9 ? * MON *)"
 }
+
+variable "gemini_api_key" {
+  description = "Gemini API key. Supply it with TF_VAR_gemini_api_key; it is never stored in state"
+  type        = string
+  sensitive   = true
+  ephemeral   = true
+}
