@@ -24,7 +24,7 @@ data "aws_caller_identity" "current" {}
 
 locals {
   account_id = data.aws_caller_identity.current.account_id
-  repo       = "ylaganwsn/aws-cost-explainer"
+  repo       = "ylaganwsn@93303371/aws-cost-explainer@1415123268"
 }
 
 # --- Bucket that holds the main project's Terraform state ---
