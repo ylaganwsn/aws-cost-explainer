@@ -30,6 +30,12 @@ data "aws_iam_policy_document" "lambda" {
   }
 
   statement {
+    sid       = "SendReportEmail"
+    actions   = ["ses:SendEmail"]
+    resources = [aws_sesv2_email_identity.report.arn]
+  }
+
+  statement {
     sid       = "ReadGeminiKey"
     actions   = ["ssm:GetParameter"]
     resources = [aws_ssm_parameter.gemini_key.arn]

@@ -28,6 +28,8 @@ resource "aws_lambda_function" "report" {
       SNS_TOPIC_ARN        = aws_sns_topic.reports.arn
       GEMINI_KEY_PARAMETER = var.gemini_key_parameter_name
       USE_LLM              = tostring(var.use_llm)
+      SES_SENDER           = aws_sesv2_email_identity.report.email_identity
+      SES_RECIPIENT        = var.notification_email
     }
   }
 
