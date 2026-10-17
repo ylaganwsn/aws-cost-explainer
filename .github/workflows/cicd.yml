@@ -1,0 +1,80 @@
+name: CICD
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      action:
+        description: What should Terraform do?
+        type: choice
+        options: [plan, apply, destroy]
+        default: plan
+
+permissions:
+  id-token: write # lets the job request an OIDC token to log in to AWS
+  contents: read
+
+jobs:
+  python:
+    if: github.event_name != 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev]"
+      - run: ruff check .
+      - run: pytest
+
+  terraform:
+    needs: python
+    # Run after Python passes (or when Python was skipped for a manual run).
+    if: ${{ !cancelled() && needs.python.result != 'failure' }}
+    runs-on: ubuntu-latest
+    # Never run two Terraform jobs at the same time.
+    concurrency:
+      group: terraform
+      cancel-in-progress: false
+    env:
+      TF_IN_AUTOMATION: "true"
+      TF_VAR_gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
+      TF_VAR_notification_email: ${{ secrets.NOTIFICATION_EMAIL }}
+    defaults:
+      run:
+        working-directory: terraform
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Format check
+        if: inputs.action != 'destroy'
+        run: terraform fmt -check -recursive ..
+
+      - name: Init
+        run: terraform init -input=false -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}"
+
+      - name: Validate
+        if: inputs.action != 'destroy'
+        run: terraform validate
+
+      - name: Plan
+        if: github.event_name != 'workflow_dispatch' || inputs.action != 'destroy'
+        run: terraform plan -input=false
+
+      - name: Apply
+        if: >-
+          (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+          (github.event_name == 'workflow_dispatch' && inputs.action == 'apply')
+        run: terraform apply -auto-approve -input=false
+
+      - name: Destroy
+        if: github.event_name == 'workflow_dispatch' && inputs.action == 'destroy'
+        run: terraform destroy -auto-approve -input=false
