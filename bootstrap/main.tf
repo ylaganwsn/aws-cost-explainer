@@ -105,7 +105,7 @@ data "aws_iam_policy_document" "deploy" {
   }
   statement {
     sid       = "AppServices"
-    actions   = ["lambda:*", "sns:*", "events:*", "logs:*", "ssm:*"]
+    actions   = ["lambda:*", "sns:*", "events:*", "logs:*", "ssm:*", "ses:*"]
     resources = ["*"]
   }
   statement {
