@@ -49,7 +49,9 @@ def test_subject_is_one_line_and_capped():
 
 def test_send_report_publishes_to_topic_and_returns_id():
     sns = FakeSNS()
-    message_id = send_report("arn:aws:sns:us-east-1:111111111111:topic", "Weekly", "REPORT", client=sns)
+    message_id = send_report(
+        "arn:aws:sns:us-east-1:111111111111:topic", "Weekly", "REPORT", client=sns
+    )
     assert message_id == "abc-123"
     call = sns.calls[0]
     assert call["TopicArn"] == "arn:aws:sns:us-east-1:111111111111:topic"

@@ -44,7 +44,9 @@ def no_explain(report):
 
 def test_sample_dry_run_builds_report_and_does_not_publish(capsys):
     outcome = run(
-        {"USE_SAMPLE_DATA": "true", "DRY_RUN": "true"}, sns_client=FakeSNS(), explain_fn=fake_explain
+        {"USE_SAMPLE_DATA": "true", "DRY_RUN": "true"},
+        sns_client=FakeSNS(),
+        explain_fn=fake_explain,
     )
     assert "Amazon CloudWatch" in outcome["report"]
     assert outcome["message_id"] is None

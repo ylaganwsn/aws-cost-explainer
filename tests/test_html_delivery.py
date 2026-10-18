@@ -7,9 +7,7 @@ class FakeCe:
             "ResultsByTime": [
                 {
                     "TimePeriod": {"Start": "2026-10-05", "End": "2026-10-06"},
-                    "Groups": [
-                        {"Keys": ["EC2"], "Metrics": {"UnblendedCost": {"Amount": "30"}}}
-                    ],
+                    "Groups": [{"Keys": ["EC2"], "Metrics": {"UnblendedCost": {"Amount": "30"}}}],
                 }
             ]
         }
