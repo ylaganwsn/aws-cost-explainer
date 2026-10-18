@@ -1,4 +1,6 @@
-"""Send the finished report by email through an SNS topic.
+"""Send the finished report by email: plain text through SNS, or HTML through SES.
+
+Also looks up the AWS account number shown in the HTML report.
 
 Unlike the LLM step, delivery is essential: errors are raised, not swallowed.
 """
@@ -48,5 +50,43 @@ def send_report(
         TopicArn=topic_arn,
         Subject=clean_subject(subject),
         Message=build_message(report, explanation),
+    )
+    return response["MessageId"]
+
+
+def get_account_id(client: Any = None) -> str:
+    if client is None:
+        import boto3
+
+        client = boto3.client("sts")
+    return client.get_caller_identity()["Account"]
+
+
+def send_html_report(
+    *,
+    sender: str,
+    recipient: str,
+    subject: str,
+    html: str,
+    text: str,
+    client: Any = None,
+) -> str:
+    """Send one email with an HTML body and a plain-text fallback. Returns the SES message id."""
+    if client is None:
+        import boto3
+
+        client = boto3.client("sesv2")
+    response = client.send_email(
+        FromEmailAddress=sender,
+        Destination={"ToAddresses": [recipient]},
+        Content={
+            "Simple": {
+                "Subject": {"Data": clean_subject(subject), "Charset": "UTF-8"},
+                "Body": {
+                    "Html": {"Data": html, "Charset": "UTF-8"},
+                    "Text": {"Data": text, "Charset": "UTF-8"},
+                },
+            }
+        },
     )
     return response["MessageId"]

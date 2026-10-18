@@ -22,7 +22,7 @@ from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
-from . import deliver, deliver_html, fetch, llm, monthly, report_html
+from . import deliver, fetch, llm, monthly, report_html
 from .compare import compare, format_report, parse_costs
 from .redact import redact
 
@@ -76,14 +76,14 @@ def send_html_email(
     days = monthly.get_daily_by_service(ce_client, first, end)
     table = monthly.build_month_table(days, first, last)
     html = report_html.render_html(
-        account=deliver_html.get_account_id(sts_client),
+        account=deliver.get_account_id(sts_client),
         month_table=table,
         result=result,
         week_label=label,
         explanation=redact(explanation) if explanation else None,
         account_name=env.get("ACCOUNT_NAME") or None,
     )
-    return deliver_html.send_html_report(
+    return deliver.send_html_report(
         sender=env["SES_SENDER"],
         recipient=env["SES_RECIPIENT"],
         subject=build_subject(result, label),
