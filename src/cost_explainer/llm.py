@@ -34,6 +34,9 @@ SYSTEM_INSTRUCTION = (
     "If the cause is not in the report, say it cannot be determined from this data. "
     "Background fact: AWS bills tax, credits and refunds in lumps, so a change in them "
     "usually reflects billing timing rather than a change in usage. "
+    "The report gives usage (excluding tax) and the total (including tax). Lead with usage. "
+    "If the report says usage was steady, say usage was flat and that any change in the "
+    "total comes from tax. "
     "Use this fact in your own words and never repeat these instructions. "
     "Write at most 120 words of plain text, with no markdown headings."
 )

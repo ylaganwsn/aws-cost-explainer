@@ -51,9 +51,9 @@ def get_costs(
 
 
 def build_subject(result: dict[str, Any], label: str) -> str:
-    pct = result["total_pct"]
+    pct = result["usage_pct"]
     pct_text = f"{pct:+.1f}%" if pct is not None else "n/a"
-    return f"AWS cost report {label}: ${result['current_total']:.2f} ({pct_text})"
+    return f"AWS cost report {label}: usage ${result['usage_current']:.2f} ({pct_text})"
 
 
 def send_html_email(
