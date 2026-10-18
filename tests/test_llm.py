@@ -1,6 +1,7 @@
 import json
 import urllib.error
 
+from cost_explainer.compare import compare, format_report
 from cost_explainer.llm import (
     MAX_INPUT_CHARS,
     MAX_OUTPUT_TOKENS,
@@ -111,3 +112,17 @@ def test_request_limits_output_and_marks_data_untrusted():
     assert body["generation_config"]["max_output_tokens"] == MAX_OUTPUT_TOKENS
     assert "untrusted" in body["system_instruction"]
     assert body["model"] == "some-model"
+
+
+def test_system_instruction_leads_with_usage():
+    body = build_request("report", "m")
+    assert "usage (excluding tax)" in body["system_instruction"]
+    assert "usage was steady" in body["system_instruction"]
+
+
+def test_request_carries_usage_and_total_lines():
+    report = format_report(compare({"EC2": 10.0, "Tax": 1.0}, {"EC2": 10.0, "Tax": 41.0}))
+    body = build_request(report, "m")
+    assert "Usage (excluding tax): $10.00 -> $10.00" in body["input"]
+    assert "Total (including tax): $11.00 -> $51.00" in body["input"]
+    assert "Usage was steady" in body["input"]

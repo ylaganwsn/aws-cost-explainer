@@ -5,6 +5,8 @@ from __future__ import annotations
 from datetime import date, timedelta
 from typing import Any
 
+from .compare import is_usage
+
 
 def month_bounds(last_day: date) -> tuple[date, date]:
     """First day of last_day's month, and the day after last_day (Cost Explorer End is exclusive)."""
@@ -24,9 +26,12 @@ def week_ranges(first: date, last: date) -> list[tuple[date, date]]:
 
 
 def week_label(start: date, end: date) -> str:
-    if start == end:
-        return f"{start:%b} {start.day}"
-    return f"{start:%b} {start.day}-{end.day}"
+    """'Oct 5-11' for a full week; partial weeks carry their day count, e.g. 'Oct 1-4 (4 days)'."""
+    label = f"{start:%b} {start.day}" if start == end else f"{start:%b} {start.day}-{end.day}"
+    days = (end - start).days + 1
+    if days < 7:
+        label += f" ({days} day{'s' if days != 1 else ''})"
+    return label
 
 
 def get_daily_by_service(client: Any, start: date, end: date) -> dict[date, dict[str, float]]:
@@ -74,15 +79,19 @@ def build_month_table(
             totals[service] = totals.get(service, 0.0) + amount
 
     ranked = [s for s in sorted(totals, key=lambda s: totals[s], reverse=True) if totals[s] != 0]
-    shown, rest = ranked[:top_n], ranked[top_n:]
-    rows = [
-        {
+    usage = [s for s in ranked if is_usage(s)]
+    shown, rest = usage[:top_n], usage[top_n:]
+    # Tax is never folded into "Other": it always gets its own row, last, just above Total.
+    non_usage = [s for s in ranked if not is_usage(s)]
+
+    def row(s: str) -> dict[str, Any]:
+        return {
             "service": s,
             "weeks": [round(w.get(s, 0.0), 2) for w in per_week],
             "total": round(totals[s], 2),
         }
-        for s in shown
-    ]
+
+    rows = [row(s) for s in shown]
     if rest:
         rows.append(
             {
@@ -91,6 +100,7 @@ def build_month_table(
                 "total": round(sum(totals[s] for s in rest), 2),
             }
         )
+    rows += [row(s) for s in non_usage]
     week_totals = [round(sum(w.values()), 2) for w in per_week]
     return {
         "labels": [week_label(s, e) for s, e in weeks],

@@ -3,7 +3,14 @@ from pathlib import Path
 
 import pytest
 
-from cost_explainer.compare import Change, compare, format_report, parse_costs
+from cost_explainer.compare import (
+    Change,
+    compare,
+    format_report,
+    is_usage,
+    parse_costs,
+    steady_message,
+)
 
 SAMPLE = Path(__file__).resolve().parents[1] / "examples" / "sample_cost_data.json"
 
@@ -86,7 +93,57 @@ def test_report_works_without_llm(periods):
 
 def test_empty_report():
     text = format_report(compare({"A": 1.0}, {"A": 1.0}))
-    assert "No changes" in text
+    assert "Usage was steady: no service changed by both more than $1.00 and 20%" in text
+
+
+def test_rise_past_dollar_but_not_percent_threshold_is_steady():
+    result = compare({"EC2": 100.0}, {"EC2": 105.0})  # +$5 but only +5%
+    assert result["top_movers"] == []
+    assert result["usage_steady"] is True
+    assert "Usage was steady" in format_report(result)
+
+
+def test_usage_totals_exclude_tax(periods):
+    result = compare(*periods)
+    assert result["usage_previous"] == pytest.approx(26.20)
+    assert result["usage_current"] == pytest.approx(37.02)
+    assert result["usage_delta"] == pytest.approx(10.82)
+    assert result["usage_pct"] == pytest.approx(41.3)
+
+
+def test_is_usage_is_case_insensitive():
+    assert not is_usage("Tax") and not is_usage("TAX ")
+    assert is_usage("Amazon EC2")
+    assert not Change("tax", 1.0, 2.0).is_usage
+
+
+def test_tax_only_change_is_steady_usage():
+    result = compare({"EC2": 10.0, "Tax": 1.0}, {"EC2": 10.0, "Tax": 41.0})
+    assert result["usage_steady"] is True
+    assert result["usage_delta"] == 0
+    assert result["total_delta"] == pytest.approx(40.0)
+    text = format_report(result)
+    assert "Usage was steady" in text
+    assert "Top movers" not in text
+
+
+def test_usage_and_tax_movers_both_listed():
+    result = compare({"EC2": 10.0, "Tax": 1.0}, {"EC2": 30.0, "Tax": 41.0})
+    assert result["usage_steady"] is False
+    assert [c.service for c in result["top_movers"]] == ["Tax", "EC2"]
+
+
+def test_report_puts_usage_before_total(periods):
+    text = format_report(compare(*periods))
+    assert "Usage (excluding tax): $26.20 -> $37.02" in text
+    assert text.index("Usage (excluding tax)") < text.index("Total (including tax)")
+
+
+def test_steady_message_uses_thresholds():
+    result = compare({"A": 1.0}, {"A": 1.0}, min_abs_change=5, min_pct_change=12.5)
+    assert steady_message(result) == (
+        "Usage was steady: no service changed by both more than $5.00 and 12.5%"
+    )
 
 
 def test_change_dataclass():

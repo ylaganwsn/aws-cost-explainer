@@ -105,6 +105,13 @@ def test_subject_summarises_total_and_percent():
     assert "+40.0%" in subject
 
 
+def test_subject_uses_usage_and_ignores_tax_jump():
+    result = compare({"EC2": 10.0, "Tax": 1.0}, {"EC2": 10.0, "Tax": 41.0})
+    subject = build_subject(result, "2026-10-05 to 2026-10-11")
+    assert "usage $10.00 (+0.0%)" in subject
+    assert "$51.00" not in subject
+
+
 def test_handler_returns_summary(monkeypatch):
     monkeypatch.setenv("USE_SAMPLE_DATA", "true")
     monkeypatch.setenv("DRY_RUN", "true")

@@ -5,8 +5,17 @@ Python decides what changed. Nothing in this module calls an LLM.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any
+
+# Cost Explorer SERVICE keys that are not usage. Only Tax is billed as its own "service";
+# credits and refunds are netted into each service, so they cannot be separated here.
+NON_USAGE_SERVICES = {"tax"}
+
+
+def is_usage(service: str) -> bool:
+    return service.strip().lower() not in NON_USAGE_SERVICES
 
 
 @dataclass(frozen=True)
@@ -33,6 +42,10 @@ class Change:
     @property
     def is_gone(self) -> bool:
         return self.previous > 0 and self.current == 0
+
+    @property
+    def is_usage(self) -> bool:
+        return is_usage(self.service)
 
 
 def parse_costs(response: dict[str, Any]) -> list[dict[str, float]]:
@@ -71,19 +84,50 @@ def compare(
         return c.is_new or c.is_gone or abs(c.pct or 0) >= min_pct_change
 
     movers = sorted((c for c in changes if noteworthy(c)), key=lambda c: abs(c.delta), reverse=True)
-    prev_total = round(sum(previous.values()), 2)
-    curr_total = round(sum(current.values()), 2)
-    total_delta = round(curr_total - prev_total, 2)
+    total = _totals(previous.values(), current.values())
+    usage = _totals(
+        (v for s, v in previous.items() if is_usage(s)),
+        (v for s, v in current.items() if is_usage(s)),
+    )
 
     return {
-        "previous_total": prev_total,
-        "current_total": curr_total,
-        "total_delta": total_delta,
-        "total_pct": round(total_delta / prev_total * 100, 1) if prev_total else None,
+        "previous_total": total[0],
+        "current_total": total[1],
+        "total_delta": total[2],
+        "total_pct": total[3],
+        "usage_previous": usage[0],
+        "usage_current": usage[1],
+        "usage_delta": usage[2],
+        "usage_pct": usage[3],
+        "usage_steady": not any(c.is_usage for c in movers),
+        "min_abs_change": min_abs_change,
+        "min_pct_change": min_pct_change,
         "new_services": [c.service for c in movers if c.is_new],
         "gone_services": [c.service for c in movers if c.is_gone],
         "top_movers": movers[:top_n],
     }
+
+
+def _totals(
+    previous: Iterable[float], current: Iterable[float]
+) -> tuple[float, float, float, float | None]:
+    """(previous, current, delta, pct) rounded for display; pct is None when previous is 0."""
+    prev = round(sum(previous), 2)
+    curr = round(sum(current), 2)
+    delta = round(curr - prev, 2)
+    return prev, curr, delta, round(delta / prev * 100, 1) if prev else None
+
+
+def steady_message(result: dict[str, Any]) -> str:
+    return (
+        "Usage was steady: no service changed by both more than "
+        f"${result['min_abs_change']:.2f} and {result['min_pct_change']:g}%"
+    )
+
+
+def _summary_line(name: str, prev: float, curr: float, delta: float, pct: float | None) -> str:
+    pct_text = f"{pct:+.1f}%" if pct is not None else "n/a"
+    return f"{name}: ${prev:.2f} -> ${curr:.2f} ({delta:+.2f} USD, {pct_text})"
 
 
 def format_report(result: dict[str, Any], period_label: str = "") -> str:
@@ -92,15 +136,27 @@ def format_report(result: dict[str, Any], period_label: str = "") -> str:
     title = "AWS cost report" + (f" ({period_label})" if period_label else "")
     lines.append(title)
     lines.append("=" * len(title))
-    pct = result["total_pct"]
-    pct_text = f"{pct:+.1f}%" if pct is not None else "n/a"
     lines.append(
-        f"Total: ${result['previous_total']:.2f} -> ${result['current_total']:.2f} "
-        f"({result['total_delta']:+.2f} USD, {pct_text})"
+        _summary_line(
+            "Usage (excluding tax)",
+            result["usage_previous"],
+            result["usage_current"],
+            result["usage_delta"],
+            result["usage_pct"],
+        )
+    )
+    lines.append(
+        _summary_line(
+            "Total (including tax)",
+            result["previous_total"],
+            result["current_total"],
+            result["total_delta"],
+            result["total_pct"],
+        )
     )
     movers: list[Change] = result["top_movers"]
-    if not movers:
-        lines.append("\nNo changes above the reporting thresholds.")
+    if result["usage_steady"]:
+        lines.append(f"\n{steady_message(result)}.")
         return "\n".join(lines)
     lines.append("\nTop movers:")
     for c in movers:
